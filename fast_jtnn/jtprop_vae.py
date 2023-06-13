@@ -290,4 +290,3 @@ class JTPropVAE(nn.Module):
             if not has_error: return cur_mol, cur_mol
 
         return None, pre_mol
-

@@ -120,6 +120,7 @@ def dfs(node, fa_idx):
 
 def main_mol_tree(oinput, ovocab, MAX_TREE_WIDTH=50):
     cset = set()
+    failset = set()
     with open(oinput, 'r') as input_file:
         for i, line in enumerate(input_file.readlines()):
             try:
@@ -134,6 +135,7 @@ def main_mol_tree(oinput, ovocab, MAX_TREE_WIDTH=50):
                     sys.stderr.write('[WARNING]: %d-th molecule %s has a high tree-width.\n' % (i + 1, smiles))
             except:
                 print(line)
+                failset.add(line)
         
     with open(ovocab, 'w') as vocab_file:
         for x in cset:

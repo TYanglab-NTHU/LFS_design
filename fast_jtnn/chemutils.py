@@ -29,7 +29,6 @@ def get_mol(smiles):
                     at.SetFormalCharge(1)
                 if at.GetAtomicNum()==8 and at.GetFormalCharge()==0 and at.GetExplicitValence()==3:
                     at.SetFormalCharge(1)
-
     except:
         pass
 

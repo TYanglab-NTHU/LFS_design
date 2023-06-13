@@ -1,8 +1,6 @@
 import torch
 import sys,json
-sys.path.append('/home/scorej41075/program/JTVAE_horovod/JCCS')
 import time
-import timeout_decorator
 from torch.utils.data import Dataset, DataLoader
 from .mol_tree import *
 import numpy as np
@@ -12,7 +10,6 @@ from .jtmpn import JTMPN
 import pickle as pickle
 import os, random
 import torch.utils.data.distributed
-import horovod.torch as hvd
 
 
 class MolTreeFolder(object):
@@ -170,31 +167,41 @@ class PairTreeFolder(object):
                 yield b
 
             del data, batches, dataset, dataloader
-
-
+ 
 def tensorize(tree_batch, vocab, assm=True):
-    set_batch_nodeID(tree_batch, vocab)
-    smiles_batch = [tree.smiles for tree in tree_batch]
-    jtenc_holder,mess_dict = JTNNEncoder.tensorize(tree_batch)
-    jtenc_holder = jtenc_holder
-    mpn_holder = MPN.tensorize(smiles_batch)
 
+    set_batch_nodeID(tree_batch,vocab)
+    smiles_batch = [tree.smiles for tree in tree_batch]
+    jtenc_holder, mess_dict = JTNNEncoder.tensorize(tree_batch)
+    mpn_holder = MPN.tensorize(smiles_batch)
     if assm is False:
         return tree_batch, jtenc_holder, mpn_holder
-
-    cands = []
-    batch_idx = []
-    for i,mol_tree in enumerate(tree_batch):
-        for node in mol_tree.nodes:
-            #Leaf node's attachment is determined by neighboring node's attachment
-            if node.is_leaf or len(node.cands) == 1: continue
-            cands.extend( [(cand, mol_tree.nodes, node) for cand in node.cands] )
-            batch_idx.extend([i] * len(node.cands))
-
-    jtmpn_holder = JTMPN.tensorize(cands, mess_dict)
-    batch_idx = torch.LongTensor(batch_idx)
-
-    return tree_batch, jtenc_holder, mpn_holder, (jtmpn_holder,batch_idx)
+    fatoms_final = create_empty_tensor(0, 35)
+    fbonds_final = create_empty_tensor(0, 40)
+    agraph_final = create_empty_tensor(0, 15).long()
+    bgraph_final = create_empty_tensor(0, 15).long()
+    scope_final = []
+    batch_idx_final = []
+    jtmpn_holder_final = [fatoms_final,fbonds_final,agraph_final,bgraph_final,scope_final]
+    for i, mol_tree in enumerate(tree_batch):
+        if len(mol_tree.smiles) != 1:
+            try:
+                cands = []
+                batch_idx = []
+                for node in mol_tree.nodes:
+                    if node.is_leaf or len(node.cands) == 1: continue
+                    cands.extend( [(cand, mol_tree.nodes, node) for cand in node.cands] )
+                    batch_idx.extend([i] * len(node.cands))
+                jtmpn_holder = JTMPN.tensorize(cands, mess_dict)
+                batch_idx_final += batch_idx
+                for num in range(len(jtmpn_holder)-1):
+                    jtmpn_holder_final[num] = torch.cat((jtmpn_holder_final[num],jtmpn_holder[num]),dim=0)
+                for scope in jtmpn_holder[-1]:
+                    jtmpn_holder_final[-1].append(scope)
+            except:
+                pass
+    batch_idx_final = torch.LongTensor(batch_idx_final)
+    return tree_batch, jtenc_holder, mpn_holder, (jtmpn_holder_final, batch_idx_final)
 
 def set_batch_nodeID(mol_batch, vocab):
     tot = 0
@@ -203,3 +210,6 @@ def set_batch_nodeID(mol_batch, vocab):
             node.idx = tot
             node.wid = vocab.get_index(node.smiles)
             tot += 1
+            
+def create_empty_tensor(rows, cols):
+    return torch.empty(rows, cols)

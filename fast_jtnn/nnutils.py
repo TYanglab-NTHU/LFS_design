@@ -3,11 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-def create_var(tensor, requires_grad=None,gen=True):
-    # if requires_grad is None:
-    #     return Variable(tensor).cuda()
-    if gen is True:
-        return Variable(tensor)
+def create_var(tensor, requires_grad=None):#,gen=True):
+    if requires_grad is None:
+        return Variable(tensor).cuda()
     else:
         return Variable(tensor, requires_grad=requires_grad).cuda()
 

@@ -5,3 +5,5 @@ from .jtmpn import JTMPN
 from .mpn import MPN
 from .nnutils import create_var
 from .datautils import MolTreeFolder, PairTreeFolder, MolTreeDataset
+from .lfsutils import LigandGenerator
+from .jtprop_vae import JTPropVAE

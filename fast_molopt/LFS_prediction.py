@@ -9,7 +9,7 @@ from rdkit import RDLogger
 import pandas as pd
 import itertools
 project_root = os.path.dirname(os.path.dirname(__file__))
-project_root = '/home/scorej41075/program/test/LFS_design'
+project_root = '/home/scorej41075/program/LFS_design'
 hidden_size = 450
 latent_size = 56
 depthT = 20
@@ -121,7 +121,45 @@ class LFSgenerator():
 
 if __name__ == '__main__':
     model = LFSgenerator()
-    smis = ['CC#N','C#N']
-    lfs = model.get_lfs_from_smi('C#N')
-    smi,pro,decode_loss = model.gen_target_smi(0.2,'C#N')
+    smis = ['C#N','CC#N']
+    # lfs = model.get_lfs_from_smi('C#N')
+    tree_batch = []
+    for smi in smis:
+        mol_tree = MolTree(smi)
+        mol_tree.recover()
+        mol_tree.assemble()
+        for node in mol_tree.nodes:
+            if node.label not in node.cands:
+                node.cands.append(node.label)
+        del mol_tree.mol
+        for node in mol_tree.nodes:
+            del node.mol
+        tree_batch.append(mol_tree)
+    model.restore()
     
+    model_ = model.model
+    model_.cuda()
+
+    mol_batch = datautils.tensorize(tree_batch,model.vocab)
+    x_batch, x_jtenc_holder, x_mpn_holder, x_jtmpn_holder = mol_batch
+    x_tree_vecs, tree_message, x_mol_vecs = model_.encode(x_jtenc_holder,x_mpn_holder)
+    z_tree_vecs, tree_kl = model_.rsample(x_tree_vecs, model_.T_mean, model_.T_var)
+    z_mol_vecs, mol_kl = model_.rsample(x_mol_vecs, model_.G_mean, model_.G_var)
+    
+    
+    
+    assm_loss, assm_acc = model_.assm(x_batch, x_jtmpn_holder, z_mol_vecs, tree_message)
+    jtmpn_holder,batch_idx = x_jtmpn_holder
+    fatoms,fbonds,agraph,bgraph,scope = jtmpn_holder
+    batch_idx = create_var(batch_idx)
+    cands_vecs = model_.jtmpn(fatoms,fbonds,agraph,bgraph,scope,tree_message)
+    x_mol_vecs = x_mol_vecs.index_select(0, batch_idx)
+
+    x_mol_vecs = model_.A_assm(z_mol_vecs) #bilinear
+
+    
+
+
+    cand_vecs = model_.jtmpn(fatoms, fbonds, agraph, bgraph, scope, x_tree_mess)
+
+
